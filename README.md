@@ -91,6 +91,33 @@ Never put these values in the repository.
 
 Open `APP_URL`, sign in, then choose your template and bullet bank in the file picker.
 
+## Send jobs from Claude chat (optional)
+
+A connector lets Claude chat send a job to the app. In a chat, say something like "send this to my resume builder." Claude saves the posting and replies with a link. The link opens the app with the job filled in and starts picking bullets. Jobs also wait in the app's Inbox for 30 days, or until you generate their resume.
+
+### 1. Add a Redis database in Vercel
+
+1. In the Vercel project, open **Storage**, then **Create Database** (or **Browse Marketplace**), and choose **Upstash** → **Redis**. The free plan is enough.
+2. Connect it to this project. Vercel adds the connection settings to the project's environment variables for you (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; the app reads either).
+
+### 2. Add the connector secret
+
+Add one more environment variable, then redeploy:
+
+| Name | Value |
+|---|---|
+| `MCP_SECRET` | A random string of 24+ letters and digits (use a password generator; no symbols, since it goes in a URL) |
+
+### 3. Add the connector in Claude
+
+1. In Claude, go to **Customize → Connectors**, then **Add → Add custom connector**.
+2. Name: `Resume Builder`. URL: `APP_URL/api/mcp/` followed by your `MCP_SECRET`, for example `https://resume-builder-abc.vercel.app/api/mcp/YOUR_SECRET`.
+3. Authentication: **No sign-in**. Click **Add**.
+
+The secret in the URL is what keeps others out, so treat the whole URL like a password. To change it, set a new `MCP_SECRET`, redeploy, then remove the connector in Claude and add it again with the new URL.
+
+If Claude doesn't use the connector in a chat, click **+** in the message box, open **Connectors**, and make sure Resume Builder is on.
+
 ## Costs
 
 - Vercel Hobby: free for personal use.
@@ -115,7 +142,8 @@ For local sign-in, add `http://localhost:3000` and `http://localhost:3000/api/au
 
 ### How it's built
 
-- Next.js on Vercel. No database: the session (Google refresh token) and the chosen file IDs are stored in encrypted, HTTP-only cookies.
+- Next.js on Vercel. The session (Google refresh token) and the chosen file IDs are stored in encrypted, HTTP-only cookies. Redis holds only jobs sent from Claude chat.
+- `app/api/mcp/[key]/route.ts`: the Claude chat connector (MCP server, via `mcp-handler`), with one tool that saves a job and returns a link. `lib/drafts.ts` stores the jobs.
 - `lib/select.ts`: one Claude request with structured output. The bank is sent with every request, and the IDs Claude can return are limited to IDs in the bank. Server-side refusal fallback is turned on.
 - `lib/validate.ts`: the rules, enforced in code on the server and in the review screen.
 - `lib/docgen.ts`: the Google Docs edits that fill the template copy, applied in one batch.
