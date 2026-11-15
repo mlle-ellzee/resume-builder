@@ -55,7 +55,11 @@ This takes about 30 minutes. You need a Google Cloud project, an Anthropic API k
 In [console.cloud.google.com](https://console.cloud.google.com), with your project selected:
 
 1. **APIs & Services → Library**: enable **Google Docs API**, **Google Sheets API**, **Google Drive API**, and **Google Picker API**.
-2. **Google Auth Platform → Branding**: app name "Resume Builder", your email as support and developer contact.
+2. **Google Auth Platform → Branding**: app name "Resume Builder", your email as support and developer contact. Publishing (next step) also needs these, so fill them in now:
+   - App home page: `APP_URL`
+   - Application privacy policy link: `APP_URL/privacy`
+   - Authorized domains: your Vercel host without `https://`, such as `resume-builder-abc.vercel.app`
+   - Leave the logo empty. Uploading one makes Google require a review.
 3. **Audience**: User type **External**. Click **Publish app** so it's **In production**. With only the scopes below, Google doesn't require verification. In "Testing" mode, sign-ins expire every 7 days.
 4. **Data Access → Add or remove scopes**: add `openid`, `.../auth/userinfo.email`, and `.../auth/drive.file`.
 5. **Clients → Create client**: type **Web application**.
