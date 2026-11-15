@@ -249,6 +249,12 @@ function Setup({
   return (
     <main className="narrow">
       <h1>Your files</h1>
+      {!/^\d+$/.test(picker.appId) && (
+        <p className="error">
+          GOOGLE_PROJECT_NUMBER is {picker.appId ? `"${picker.appId}", which isn't a project number` : "not set"}. Without the
+          all-digits project number, picked files can't be opened. Fix it in Vercel and redeploy.
+        </p>
+      )}
       <p className="muted">
         Choose your template and bullet bank in Google's file picker. The app can only open files you choose here and the
         resumes it creates.

@@ -93,7 +93,7 @@ async function g<T>(token: string, url: string, init: RequestInit = {}): Promise
       msg = j.error?.message ?? msg;
     } catch {}
     if (res.status === 404 || res.status === 403)
-      msg += ". If this is the template or bullet bank, pick it again in Settings so the app has access.";
+      msg = msg.replace(/\.+$/, "") + ". If this is the template or bullet bank, pick it again in Settings so the app has access.";
     throw new HttpError(res.status === 401 ? 401 : 502, msg);
   }
   return (await res.json()) as T;
