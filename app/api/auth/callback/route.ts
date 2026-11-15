@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     return fail(e instanceof HttpError ? e.message : "Sign-in failed.");
   }
-  const res = NextResponse.redirect(home);
+  const next = req.cookies.get("rb_next")?.value;
+  const dest = next && /^\/(?![\/\\])/.test(next) ? new URL(next, req.nextUrl.origin) : home;
+  const res = NextResponse.redirect(dest);
   res.cookies.delete("rb_state");
+  res.cookies.delete("rb_next");
   return res;
 }

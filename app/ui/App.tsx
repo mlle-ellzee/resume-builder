@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { conflictMap } from "@/lib/bank";
+import type { JobDraft } from "@/lib/drafts";
 import type { Settings } from "@/lib/session";
 import type { Bank, Bullet, MatchReport, Pick, SelectResult, Selection, Variant } from "@/lib/types";
 import { checkSelection } from "@/lib/validate";
@@ -14,6 +15,9 @@ interface Props {
   initialSettings: Settings | null;
   picker: { apiKey: string; appId: string };
   error?: string;
+  /** A job sent from Claude chat through the connector link. */
+  incoming: JobDraft | null;
+  inboxEnabled: boolean;
 }
 
 interface Draft {
@@ -24,6 +28,9 @@ interface Draft {
   bankProblems?: string[];
   result?: SelectResult;
   selection?: Selection;
+  /** Set when the job came from the Inbox, so it can be cleared once its resume exists. */
+  draftId?: string;
+  notes?: string;
 }
 
 const DRAFT_KEY = "rb_draft_v1";
@@ -52,12 +59,16 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+function fromJob(job: JobDraft): Draft {
+  return { company: job.company, role: job.role, jd: job.jobDescription, notes: job.notes || undefined, draftId: job.id };
+}
+
 function defaultDocName(settings: Settings | null, company: string, role: string) {
   const base = (settings?.templateName || "Resume").replace(/\s*-?\s*(claude\s+)?template\s*$/i, "").trim() || "Resume";
   return [base, company.trim(), role.trim()].filter(Boolean).join(" - ");
 }
 
-export default function App({ email, initialSettings, picker, error }: Props) {
+export default function App({ email, initialSettings, picker, error, incoming, inboxEnabled }: Props) {
   const [settings, setSettings] = useState<Settings | null>(initialSettings);
   const [step, setStep] = useState<Step>(initialSettings ? "input" : "setup");
   const [draft, setDraft] = useState<Draft>({ company: "", role: "", jd: "" });
@@ -65,11 +76,23 @@ export default function App({ email, initialSettings, picker, error }: Props) {
   const [err, setErr] = useState<string | null>(error ?? null);
   const [done, setDone] = useState<{ url: string; warnings: string[] } | null>(null);
 
+  const started = useRef(false);
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (incoming) {
+      // Opened from a Claude chat link: fill in the job and start picking.
+      window.history.replaceState(null, "", "/");
+      const d = fromJob(incoming);
+      setDraft(d);
+      saveDraft(d);
+      if (initialSettings) runSelect(d);
+      return;
+    }
     const d = loadDraft();
     setDraft(d);
     if (initialSettings && d.selection && d.bank && d.result) setStep("review");
-  }, [initialSettings]);
+  }, [initialSettings, incoming]);
 
   const update = (patch: Partial<Draft>) =>
     setDraft((d) => {
@@ -78,14 +101,15 @@ export default function App({ email, initialSettings, picker, error }: Props) {
       return next;
     });
 
-  async function runSelect() {
+  async function runSelect(d: Draft = draft) {
     setErr(null);
+    setStep("input");
     setBusy(true);
     try {
       const data = await postJson<{ bank: Bank; bankProblems: string[]; result: SelectResult }>("/api/select", {
-        company: draft.company,
-        role: draft.role,
-        jobDescription: draft.jd,
+        company: d.company,
+        role: d.role,
+        jobDescription: d.jd,
       });
       update({ bank: data.bank, bankProblems: data.bankProblems, result: data.result, selection: data.result.selection });
       setStep("review");
@@ -154,7 +178,7 @@ export default function App({ email, initialSettings, picker, error }: Props) {
             <textarea rows={16} value={draft.jd} onChange={(e) => update({ jd: e.target.value })} placeholder="Paste the full posting" />
           </label>
           <div className="actions">
-            <button className="primary" disabled={busy || draft.jd.trim().length < 50} onClick={runSelect}>
+            <button className="primary" disabled={busy || draft.jd.trim().length < 50} onClick={() => runSelect()}>
               {busy ? "Picking bullets…" : "Pick bullets"}
             </button>
             {draft.result && !busy && (
@@ -162,6 +186,23 @@ export default function App({ email, initialSettings, picker, error }: Props) {
             )}
           </div>
           {busy && <p className="muted">Claude is reading the posting and your bank. This usually takes under a minute or two.</p>}
+          {draft.notes && (
+            <div className="card">
+              <div className="label">Notes from your chat</div>
+              <p>{draft.notes}</p>
+            </div>
+          )}
+          {inboxEnabled && !busy && (
+            <Inbox
+              currentId={draft.draftId}
+              onOpen={(job) => {
+                const d = fromJob(job);
+                setDraft(d);
+                saveDraft(d);
+              }}
+              onError={setErr}
+            />
+          )}
         </main>
       )}
 
@@ -174,6 +215,7 @@ export default function App({ email, initialSettings, picker, error }: Props) {
           onChange={(selection) => update({ selection })}
           defaultName={defaultDocName(settings, draft.company, draft.role)}
           defaultRecipe={[draft.company, draft.role].filter((s) => s.trim()).join(" - ") || "Untitled"}
+          draftId={draft.draftId}
           onBack={() => setStep("input")}
           onError={setErr}
           onDone={(r) => {
@@ -205,7 +247,16 @@ export default function App({ email, initialSettings, picker, error }: Props) {
             <button onClick={() => setStep("review")}>Back to review</button>
             <button
               onClick={() => {
-                update({ company: "", role: "", jd: "", result: undefined, selection: undefined, bank: undefined });
+                update({
+                  company: "",
+                  role: "",
+                  jd: "",
+                  notes: undefined,
+                  draftId: undefined,
+                  result: undefined,
+                  selection: undefined,
+                  bank: undefined,
+                });
                 setStep("input");
               }}
             >
@@ -309,6 +360,7 @@ function Review({
   onChange,
   defaultName,
   defaultRecipe,
+  draftId,
   onBack,
   onError,
   onDone,
@@ -320,6 +372,7 @@ function Review({
   onChange: (s: Selection) => void;
   defaultName: string;
   defaultRecipe: string;
+  draftId?: string;
   onBack: () => void;
   onError: (m: string) => void;
   onDone: (r: { url: string; warnings: string[] }) => void;
@@ -379,6 +432,7 @@ function Review({
         saveRecipe,
         recipeName: defaultRecipe,
         notes,
+        draftId,
       });
       onDone(r);
     } catch (e) {
@@ -693,6 +747,66 @@ function Report({ report, picked }: { report: MatchReport; picked: Set<string> }
           <p>{report.notes}</p>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Inbox ---------------- */
+
+function Inbox({
+  currentId,
+  onOpen,
+  onError,
+}: {
+  currentId?: string;
+  onOpen: (job: JobDraft) => void;
+  onError: (m: string) => void;
+}) {
+  const [jobs, setJobs] = useState<JobDraft[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/drafts")
+      .then((r) => r.json())
+      .then((d) => setJobs(d.drafts ?? []))
+      .catch(() => setJobs([]));
+  }, []);
+
+  if (!jobs || jobs.length === 0) return null;
+  return (
+    <div className="card inbox">
+      <h2>Inbox</h2>
+      <p className="muted small">Jobs sent from Claude chat. Each is removed once you generate its resume, or after 30 days.</p>
+      <ul>
+        {jobs.map((j) => (
+          <li key={j.id} className={j.id === currentId ? "current" : ""}>
+            <div>
+              <strong>{j.role || "Untitled role"}</strong>
+              {j.company && <> at {j.company}</>}
+              <div className="meta">{new Date(j.createdAt).toLocaleDateString()}</div>
+            </div>
+            <div className="controls">
+              <button onClick={() => onOpen(j)} disabled={j.id === currentId}>
+                {j.id === currentId ? "Loaded" : "Load"}
+              </button>
+              <button
+                className="icon"
+                aria-label="Remove from inbox"
+                onClick={async () => {
+                  try {
+                    const r = await fetch(`/api/drafts?id=${encodeURIComponent(j.id)}`, { method: "DELETE" });
+                    if (!r.ok) throw new Error((await r.json()).error || "Couldn't remove it.");
+                    setJobs((js) => (js ?? []).filter((x) => x.id !== j.id));
+                  } catch (e) {
+                    onError(e instanceof Error ? e.message : String(e));
+                  }
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
