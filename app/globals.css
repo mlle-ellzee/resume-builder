@@ -358,9 +358,6 @@ select.add {
   }
 }
 
-.inbox {
-  margin-top: 1.5rem;
-}
 .inbox ul {
   list-style: none;
   padding: 0;
@@ -377,4 +374,36 @@ select.add {
 .inbox li .controls {
   margin-top: 0;
   flex-wrap: nowrap;
+}
+
+button.link.nav {
+  color: var(--text);
+  padding: 0.2rem 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+button.link.nav.current {
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.inbox li > div:first-child {
+  min-width: 0;
+}
+@media (max-width: 560px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .topbar nav {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .inbox li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.inbox li:first-child {
+  border-top: none;
+  padding-top: 0;
 }

@@ -8,7 +8,7 @@ import type { Bank, Bullet, MatchReport, Pick, SelectResult, Selection, Variant 
 import { checkSelection } from "@/lib/validate";
 import { pickFile, type PickedFile } from "./picker";
 
-type Step = "setup" | "input" | "review" | "done";
+type Step = "setup" | "input" | "review" | "done" | "inbox";
 
 interface Props {
   email: string;
@@ -75,6 +75,34 @@ export default function App({ email, initialSettings, picker, error, incoming, i
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(error ?? null);
   const [done, setDone] = useState<{ url: string; warnings: string[] } | null>(null);
+  const [jobs, setJobs] = useState<JobDraft[] | null>(null);
+
+  const refreshInbox = () => {
+    if (!inboxEnabled) return;
+    fetch("/api/drafts")
+      .then((r) => r.json())
+      .then((d) => setJobs(d.drafts ?? []))
+      .catch(() => setJobs([]));
+  };
+  useEffect(refreshInbox, [inboxEnabled]);
+
+  const openJob = (job: JobDraft) => {
+    if (job.id === draft.draftId && draft.result) return setStep("review");
+    const d = fromJob(job);
+    setDraft(d);
+    saveDraft(d);
+    runSelect(d);
+  };
+
+  const removeJob = async (id: string) => {
+    try {
+      const r = await fetch(`/api/drafts?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error((await r.json()).error || "Couldn't remove it.");
+      setJobs((js) => (js ?? []).filter((x) => x.id !== id));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const started = useRef(false);
   useEffect(() => {
@@ -125,11 +153,33 @@ export default function App({ email, initialSettings, picker, error, incoming, i
       <header className="topbar">
         <strong>Resume Builder</strong>
         <nav>
-          {step !== "setup" && (
-            <button className="link" onClick={() => setStep("setup")}>
-              Files
-            </button>
+          {settings && (
+            <>
+              <NavButton current={step === "input"} onClick={() => setStep("input")} disabled={busy}>
+                Job
+              </NavButton>
+              {draft.result && (
+                <NavButton current={step === "review"} onClick={() => setStep("review")} disabled={busy}>
+                  Review
+                </NavButton>
+              )}
+              {inboxEnabled && (
+                <NavButton
+                  current={step === "inbox"}
+                  onClick={() => {
+                    refreshInbox();
+                    setStep("inbox");
+                  }}
+                  disabled={busy}
+                >
+                  Inbox{jobs && jobs.length > 0 ? ` (${jobs.length})` : ""}
+                </NavButton>
+              )}
+            </>
           )}
+          <NavButton current={step === "setup"} onClick={() => setStep("setup")} disabled={busy}>
+            Files
+          </NavButton>
           <span className="muted small hide-narrow">{email}</span>
           <form action="/api/auth/logout" method="post">
             <button className="link" type="submit">
@@ -162,7 +212,7 @@ export default function App({ email, initialSettings, picker, error, incoming, i
 
       {step === "input" && (
         <main className="narrow">
-          <h1>New application</h1>
+          <h1>Job</h1>
           <div className="row2">
             <label>
               Company
@@ -181,8 +231,24 @@ export default function App({ email, initialSettings, picker, error, incoming, i
             <button className="primary" disabled={busy || draft.jd.trim().length < 50} onClick={() => runSelect()}>
               {busy ? "Picking bullets…" : "Pick bullets"}
             </button>
-            {draft.result && !busy && (
-              <button onClick={() => setStep("review")}>Back to last review</button>
+            {draft.result && !busy && <button onClick={() => setStep("review")}>Back to review</button>}
+            {!busy && (draft.jd || draft.company || draft.role) && (
+              <button
+                onClick={() =>
+                  update({
+                    company: "",
+                    role: "",
+                    jd: "",
+                    notes: undefined,
+                    draftId: undefined,
+                    result: undefined,
+                    selection: undefined,
+                    bank: undefined,
+                  })
+                }
+              >
+                Clear
+              </button>
             )}
           </div>
           {busy && <p className="muted">Claude is reading the posting and your bank. This usually takes under a minute or two.</p>}
@@ -191,17 +257,6 @@ export default function App({ email, initialSettings, picker, error, incoming, i
               <div className="label">Notes from your chat</div>
               <p>{draft.notes}</p>
             </div>
-          )}
-          {inboxEnabled && !busy && (
-            <Inbox
-              currentId={draft.draftId}
-              onOpen={(job) => {
-                const d = fromJob(job);
-                setDraft(d);
-                saveDraft(d);
-              }}
-              onError={setErr}
-            />
           )}
         </main>
       )}
@@ -216,13 +271,19 @@ export default function App({ email, initialSettings, picker, error, incoming, i
           defaultName={defaultDocName(settings, draft.company, draft.role)}
           defaultRecipe={[draft.company, draft.role].filter((s) => s.trim()).join(" - ") || "Untitled"}
           draftId={draft.draftId}
+          chatNotes={draft.notes}
           onBack={() => setStep("input")}
           onError={setErr}
           onDone={(r) => {
             setDone(r);
             setStep("done");
+            refreshInbox();
           }}
         />
+      )}
+
+      {step === "inbox" && (
+        <Inbox jobs={jobs} currentId={draft.draftId} hasReview={!!draft.result} onOpen={openJob} onRemove={removeJob} />
       )}
 
       {step === "done" && done && (
@@ -361,6 +422,7 @@ function Review({
   defaultName,
   defaultRecipe,
   draftId,
+  chatNotes,
   onBack,
   onError,
   onDone,
@@ -373,6 +435,7 @@ function Review({
   defaultName: string;
   defaultRecipe: string;
   draftId?: string;
+  chatNotes?: string;
   onBack: () => void;
   onError: (m: string) => void;
   onDone: (r: { url: string; warnings: string[] }) => void;
@@ -621,6 +684,12 @@ function Review({
       </section>
 
       <aside className="report">
+        {chatNotes && (
+          <div className="card">
+            <h2>Notes from your chat</h2>
+            <p>{chatNotes}</p>
+          </div>
+        )}
         <Report report={result.report} picked={pickedAll} />
       </aside>
     </main>
@@ -753,60 +822,80 @@ function Report({ report, picked }: { report: MatchReport; picked: Set<string> }
 
 /* ---------------- Inbox ---------------- */
 
-function Inbox({
-  currentId,
-  onOpen,
-  onError,
+function NavButton({
+  current,
+  disabled,
+  onClick,
+  children,
 }: {
-  currentId?: string;
-  onOpen: (job: JobDraft) => void;
-  onError: (m: string) => void;
+  current: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
-  const [jobs, setJobs] = useState<JobDraft[] | null>(null);
-
-  useEffect(() => {
-    fetch("/api/drafts")
-      .then((r) => r.json())
-      .then((d) => setJobs(d.drafts ?? []))
-      .catch(() => setJobs([]));
-  }, []);
-
-  if (!jobs || jobs.length === 0) return null;
   return (
-    <div className="card inbox">
-      <h2>Inbox</h2>
-      <p className="muted small">Jobs sent from Claude chat. Each is removed once you generate its resume, or after 30 days.</p>
-      <ul>
-        {jobs.map((j) => (
-          <li key={j.id} className={j.id === currentId ? "current" : ""}>
-            <div>
-              <strong>{j.role || "Untitled role"}</strong>
-              {j.company && <> at {j.company}</>}
-              <div className="meta">{new Date(j.createdAt).toLocaleDateString()}</div>
-            </div>
-            <div className="controls">
-              <button onClick={() => onOpen(j)} disabled={j.id === currentId}>
-                {j.id === currentId ? "Loaded" : "Load"}
-              </button>
-              <button
-                className="icon"
-                aria-label="Remove from inbox"
-                onClick={async () => {
-                  try {
-                    const r = await fetch(`/api/drafts?id=${encodeURIComponent(j.id)}`, { method: "DELETE" });
-                    if (!r.ok) throw new Error((await r.json()).error || "Couldn't remove it.");
-                    setJobs((js) => (js ?? []).filter((x) => x.id !== j.id));
-                  } catch (e) {
-                    onError(e instanceof Error ? e.message : String(e));
-                  }
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <button className={current ? "link nav current" : "link nav"} aria-current={current ? "page" : undefined} disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+function Inbox({
+  jobs,
+  currentId,
+  hasReview,
+  onOpen,
+  onRemove,
+}: {
+  jobs: JobDraft[] | null;
+  currentId?: string;
+  hasReview: boolean;
+  onOpen: (job: JobDraft) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <main className="narrow">
+      <h1>Inbox</h1>
+      <p className="muted">
+        Jobs sent from Claude chat. Each one is removed once you generate its resume, or after 30 days.
+      </p>
+      {jobs === null && <p className="muted">Loading…</p>}
+      {jobs && jobs.length === 0 && (
+        <div className="card">
+          <p>Nothing waiting.</p>
+          <p className="muted small">In a Claude chat with a job posting, say "send this to my resume builder."</p>
+        </div>
+      )}
+      {jobs && jobs.length > 0 && (
+        <div className="card inbox">
+          <ul>
+            {jobs.map((j) => {
+              const isCurrent = j.id === currentId;
+              return (
+                <li key={j.id}>
+                  <div>
+                    <strong>{j.role || "Untitled role"}</strong>
+                    {j.company && <> at {j.company}</>}
+                    <div className="meta">
+                      Sent {new Date(j.createdAt).toLocaleDateString()}
+                      {isCurrent && " · open now"}
+                    </div>
+                    {j.notes && <div className="reason">{j.notes}</div>}
+                  </div>
+                  <div className="controls">
+                    <button className={isCurrent && hasReview ? "" : "primary"} onClick={() => onOpen(j)}>
+                      {isCurrent && hasReview ? "Back to review" : "Pick bullets"}
+                    </button>
+                    <button className="icon" aria-label="Remove from inbox" onClick={() => onRemove(j.id)}>
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </main>
   );
 }
