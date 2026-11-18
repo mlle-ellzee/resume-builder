@@ -459,3 +459,9 @@ button.link.nav.current {
   margin: 0 0 0.5rem;
   color: var(--muted);
 }
+
+textarea.preview {
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  margin-bottom: 0.75rem;
+  white-space: pre-wrap;
+}

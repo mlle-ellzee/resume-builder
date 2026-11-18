@@ -5,6 +5,7 @@ import { conflictMap } from "@/lib/bank";
 import type { JobDraft } from "@/lib/drafts";
 import type { Settings } from "@/lib/session";
 import type { Bank, Bullet, MatchReport, Pick, SelectResult, Selection, Variant } from "@/lib/types";
+import { draftText } from "@/lib/preview";
 import { checkSelection } from "@/lib/validate";
 import { pickFile, type PickedFile } from "./picker";
 import { SortableList } from "./Sortable";
@@ -277,6 +278,8 @@ export default function App({ email, initialSettings, picker, error, incoming, i
           defaultRecipe={[draft.company, draft.role].filter((s) => s.trim()).join(" - ") || "Untitled"}
           draftId={draft.draftId}
           chatNotes={draft.notes}
+          company={draft.company}
+          role={draft.role}
           onBack={() => setStep("input")}
           onError={setErr}
           onDone={(r) => {
@@ -428,6 +431,8 @@ function Review({
   defaultRecipe,
   draftId,
   chatNotes,
+  company,
+  role,
   onBack,
   onError,
   onDone,
@@ -441,6 +446,8 @@ function Review({
   defaultRecipe: string;
   draftId?: string;
   chatNotes?: string;
+  company: string;
+  role: string;
   onBack: () => void;
   onError: (m: string) => void;
   onDone: (r: { url: string; warnings: string[] }) => void;
@@ -660,6 +667,8 @@ function Review({
           />
         </div>
 
+        <TextPreview text={(includeIds: boolean) => draftText(bank, selection, { company, role, includeIds })} />
+
         <div className="card generate">
           <label>
             New doc name
@@ -686,6 +695,51 @@ function Review({
         <Report report={result.report} picked={pickedAll} />
       </aside>
     </main>
+  );
+}
+
+function TextPreview({ text }: { text: (includeIds: boolean) => string }) {
+  const [open, setOpen] = useState(false);
+  const [includeIds, setIncludeIds] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const value = text(includeIds);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Older browsers: copy from a temporary text box.
+      const ta = document.createElement("textarea");
+      ta.value = value;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="card">
+      <div className="section-head">
+        <h2>Text version</h2>
+        <button className="link" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? "Hide preview" : "Show preview"}
+        </button>
+      </div>
+      <p className="muted small">The current draft as plain text, to paste into a chat for feedback before you generate the doc.</p>
+      <label className="check">
+        <input type="checkbox" checked={includeIds} onChange={(e) => setIncludeIds(e.target.checked)} />
+        Include bullet IDs, so feedback can name specific bullets
+      </label>
+      {open && <textarea className="preview" readOnly rows={18} value={value} onFocus={(e) => e.currentTarget.select()} />}
+      <button className="primary" onClick={copy}>
+        {copied ? "Copied" : "Copy as text"}
+      </button>
+    </div>
   );
 }
 
