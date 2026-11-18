@@ -79,3 +79,25 @@ export async function deleteDraft(id: string): Promise<void> {
   await r.del(key(id));
   await r.zrem(INDEX, id);
 }
+
+/* ---------- The draft currently on the review screen, readable from Claude chat ---------- */
+
+export interface ReviewSnapshot {
+  company: string;
+  role: string;
+  draftId?: string;
+  updatedAt: number;
+  bank: import("./types").Bank;
+  selection: import("./types").Selection;
+  report: import("./types").MatchReport;
+}
+
+const REVIEW_KEY = "review:current";
+
+export async function saveReview(snapshot: ReviewSnapshot): Promise<void> {
+  await redis().set(REVIEW_KEY, snapshot, { ex: TTL_SECONDS });
+}
+
+export async function getReview(): Promise<ReviewSnapshot | null> {
+  return (await redis().get<ReviewSnapshot>(REVIEW_KEY)) ?? null;
+}

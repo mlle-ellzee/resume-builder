@@ -280,6 +280,7 @@ export default function App({ email, initialSettings, picker, error, incoming, i
           chatNotes={draft.notes}
           company={draft.company}
           role={draft.role}
+          shareEnabled={inboxEnabled}
           onBack={() => setStep("input")}
           onError={setErr}
           onDone={(r) => {
@@ -433,6 +434,7 @@ function Review({
   chatNotes,
   company,
   role,
+  shareEnabled,
   onBack,
   onError,
   onDone,
@@ -448,6 +450,7 @@ function Review({
   chatNotes?: string;
   company: string;
   role: string;
+  shareEnabled: boolean;
   onBack: () => void;
   onError: (m: string) => void;
   onDone: (r: { url: string; warnings: string[] }) => void;
@@ -469,6 +472,28 @@ function Review({
     selection.tagline?.id ?? "",
     selection.summary?.id ?? "",
   ]);
+
+  // Share the draft with Claude chat (read through the connector) a moment after each change.
+  const [share, setShare] = useState<{ state: "saving" | "saved" | "error"; at?: number } | null>(null);
+  useEffect(() => {
+    if (!shareEnabled) return;
+    setShare((s) => ({ state: "saving", at: s?.at }));
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/review", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ company, role, draftId, bank, selection, report: result.report }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error);
+        setShare(d.saved ? { state: "saved", at: d.updatedAt } : null);
+      } catch {
+        setShare({ state: "error" });
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [shareEnabled, company, role, draftId, bank, selection, result]);
 
   const setJob = (job: string, picks: Pick[]) => onChange({ ...selection, jobs: { ...selection.jobs, [job]: picks } });
 
@@ -667,7 +692,7 @@ function Review({
           />
         </div>
 
-        <TextPreview text={(includeIds: boolean) => draftText(bank, selection, { company, role, includeIds })} />
+        <TextPreview text={(includeIds: boolean) => draftText(bank, selection, { company, role, includeIds })} share={share} />
 
         <div className="card generate">
           <label>
@@ -698,7 +723,13 @@ function Review({
   );
 }
 
-function TextPreview({ text }: { text: (includeIds: boolean) => string }) {
+function TextPreview({
+  text,
+  share,
+}: {
+  text: (includeIds: boolean) => string;
+  share: { state: "saving" | "saved" | "error"; at?: number } | null;
+}) {
   const [open, setOpen] = useState(false);
   const [includeIds, setIncludeIds] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -730,7 +761,16 @@ function TextPreview({ text }: { text: (includeIds: boolean) => string }) {
           {open ? "Hide preview" : "Show preview"}
         </button>
       </div>
-      <p className="muted small">The current draft as plain text, to paste into a chat for feedback before you generate the doc.</p>
+      {share ? (
+        <p className="muted small">
+          Claude chat can read this draft directly: ask it for feedback on your resume draft.{" "}
+          {share.state === "saving" && "Sharing changes…"}
+          {share.state === "saved" && share.at && `Shared at ${new Date(share.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`}
+          {share.state === "error" && <span className="error">Couldn't share the latest changes; copy the text instead.</span>}
+        </p>
+      ) : (
+        <p className="muted small">The current draft as plain text, to paste into a chat for feedback before you generate the doc.</p>
+      )}
       <label className="check">
         <input type="checkbox" checked={includeIds} onChange={(e) => setIncludeIds(e.target.checked)} />
         Include bullet IDs, so feedback can name specific bullets
