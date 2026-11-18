@@ -1,5 +1,5 @@
 import { planFill } from "@/lib/docgen";
-import { deleteDraft, draftsEnabled } from "@/lib/drafts";
+import { draftsEnabled, markResumeMade } from "@/lib/drafts";
 import { appendRows, batchUpdateDoc, copyFile, getDoc, HttpError, readBank, requireSession } from "@/lib/google";
 import { handle } from "@/lib/http";
 import { getSettings } from "@/lib/session";
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         warnings.push(`The resume was created, but saving the recipe failed: ${e instanceof Error ? e.message : e}`);
       }
     }
-    if (body.draftId && draftsEnabled()) await deleteDraft(body.draftId).catch(() => {});
+    if (body.draftId && draftsEnabled()) await markResumeMade(body.draftId, copy.webViewLink).catch(() => {});
     return { url: copy.webViewLink, id: copy.id, warnings };
   });
 }

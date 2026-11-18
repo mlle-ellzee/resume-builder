@@ -18,6 +18,10 @@ How to choose:
 - Past recipes show what the person chose for earlier applications. Treat them as examples of their judgment, not as templates to copy.
 - Each reason is one short sentence linking the item to something specific in the job description.
 
+The person's notes:
+- A request may include <person_notes>: the person's own thinking about this job, often from discussing the posting with Claude. They may say what to emphasize, which experience should lead, or how to order bullets.
+- Treat the notes as informed input from the person, and weigh them together with your own reading of the posting. Follow them where they hold up. Where you depart from them, for example because a suggested bullet would break a rule or a stronger option exists, say so in the report notes.
+
 Ordering bullets within each job:
 - Recruiters and hiring managers often read only the first one or two bullets under each job. Order for that reader. Do not follow the order in which the posting lists its duties or requirements.
 - First decide what this hiring manager most needs to believe about the person to move them forward: usually that they can do the core of the role, at the scope and level of ownership it calls for, plus anything that sets them apart from other applicants. The first two bullets under each job should make that case on their own.
@@ -115,6 +119,8 @@ export interface SelectInput {
   company: string;
   role: string;
   jobDescription: string;
+  /** The person's own notes, often from a fit discussion in Claude chat. */
+  notes?: string;
 }
 
 export async function selectContent(bank: Bank, input: SelectInput): Promise<SelectResult> {
@@ -128,7 +134,9 @@ export async function selectContent(bank: Bank, input: SelectInput): Promise<Sel
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
       role: "user",
-      content: `<application>\nCompany: ${input.company || "(not given)"}\nRole: ${input.role || "(not given)"}\n</application>\n\n<job_description>\n${input.jobDescription}\n</job_description>`,
+      content:
+        `<application>\nCompany: ${input.company || "(not given)"}\nRole: ${input.role || "(not given)"}\n</application>\n\n<job_description>\n${input.jobDescription}\n</job_description>` +
+        (input.notes?.trim() ? `\n\n<person_notes>\n${input.notes.trim()}\n</person_notes>` : ""),
     },
   ];
 

@@ -29,7 +29,7 @@ function buildHandler(origin: string) {
         {
           title: "Send job to Resume Builder",
           description:
-            "Save a job posting to the user's Resume Builder app and get a link that opens the app with the posting filled in and starts picking resume bullets. Use only when the user asks to send a job to the resume builder or to start a resume for it. Pass the job description as the complete original posting text, not a summary. After calling, give the user the returned link exactly as written.",
+            "Save a job posting to the user's Resume Builder app and get a link that opens the app with the posting filled in and starts picking resume bullets. Use only when the user asks to send a job to the resume builder or to start a resume for it. Pass the job description as the complete original posting text, not a summary. If the conversation covered what to emphasize or how to order the resume, put that in fit_notes: the app uses it when picking and ordering bullets. After calling, give the user the returned link exactly as written.",
           inputSchema: z.object({
             company: z.string().max(200).describe("Company name"),
             role: z.string().max(200).describe("Job title as written in the posting"),
@@ -40,9 +40,11 @@ function buildHandler(origin: string) {
               .describe("The full job posting text, verbatim, including responsibilities and qualifications"),
             fit_notes: z
               .string()
-              .max(2000)
+              .max(4000)
               .optional()
-              .describe("Optional: one to three sentences from the conversation about fit or what to emphasize"),
+              .describe(
+                "Optional: what the conversation concluded about this job, written for the bullet picker: fit, what to emphasize, and which experience should lead or how bullets should be ordered",
+              ),
           }),
         },
         async ({ company, role, job_description, fit_notes }) => {

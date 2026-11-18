@@ -30,7 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ e
     else {
       try {
         incoming = await getDraft(draftId);
-        if (!incoming) incomingError = "That job link has expired or was already used. Check the Inbox below.";
+        if (!incoming) incomingError = "That job link has expired or the job was removed from the Inbox.";
       } catch {
         incomingError = "Couldn't load that job from storage. Try the link again.";
       }
