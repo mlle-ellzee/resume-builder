@@ -11,12 +11,18 @@ const SYSTEM = `You choose resume content for one person from their bank of pre-
 
 How to choose:
 - First identify the requirements in the job description that matter most for this hire (responsibilities, functional skills, domain, seniority and scope signals), roughly 6 to 12 of them, most important first.
-- For each job, pick the bullets that give the strongest evidence for those requirements, within that job's minimum and maximum count. Use more bullets when the bank has relevant material for the role and fewer when the extra bullets would be filler. Order each job's bullets strongest first for this role.
+- For each job, pick the bullets that give the strongest evidence for those requirements, within that job's minimum and maximum count. Use more bullets when the bank has relevant material for the role and fewer when the extra bullets would be filler.
 - Bullets that exclude each other are versions of the same material. Exclusion works both ways: never pick two bullets where either one lists the other in Excludes. Use Depth and Emphasis to choose the version. Prefer a detailed version when that function is central to the role. Prefer a summary or combined version when the function is secondary but worth showing, or when it frees room for more relevant bullets.
 - Only pick a bullet for the job listed in its Job field.
 - Pick exactly one tagline, one summary, and a set of skills lines. Pick at most one skills line per label (the text before the colon). Follow the person's rules.
 - Past recipes show what the person chose for earlier applications. Treat them as examples of their judgment, not as templates to copy.
 - Each reason is one short sentence linking the item to something specific in the job description.
+
+Ordering bullets within each job:
+- Recruiters and hiring managers often read only the first one or two bullets under each job. Order for that reader. Do not follow the order in which the posting lists its duties or requirements.
+- First decide what this hiring manager most needs to believe about the person to move them forward: usually that they can do the core of the role, at the scope and level of ownership it calls for, plus anything that sets them apart from other applicants. The first two bullets under each job should make that case on their own.
+- Lead with bullets that show ownership, scope, and results tied to the role's central function. Put supporting, routine, or narrower duties after them, even when the posting lists those first.
+- In lead_rationale, state in one sentence what the first bullets are meant to establish for this role.
 
 Match report:
 - requirements: each important requirement, the picked IDs that cover it (only IDs you picked), and how well: strong, partial, or none.
@@ -83,7 +89,14 @@ function outputSchema(bank: Bank) {
     tagline: pick(active("Tagline")),
     summary: pick(active("Summary")),
     skills: z.array(pick(active("Skills"))),
-    jobs: z.array(z.object({ job: idEnum(bank.jobs.map((j) => j.name)), bullets: z.array(pick(bulletIds)) })),
+    jobs: z.array(
+      z.object({
+        job: idEnum(bank.jobs.map((j) => j.name)),
+        // Before the bullets, so the ordering is decided first.
+        lead_rationale: z.string(),
+        bullets: z.array(pick(bulletIds)),
+      }),
+    ),
     gaps: z.array(z.string()),
     notes: z.string(),
   });
@@ -179,6 +192,7 @@ export async function selectContent(bank: Bank, input: SelectInput): Promise<Sel
       requirements: out.requirements.map((r) => ({ ...r, covered_by: r.covered_by.filter((id) => picked.has(id)) })),
       gaps: out.gaps,
       notes: out.notes,
+      ordering: Object.fromEntries(out.jobs.map((j) => [j.job, j.lead_rationale])),
     },
     warnings: [...changes, ...remaining.map((i) => `${i.where}: ${i.message}`)],
   };

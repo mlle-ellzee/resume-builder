@@ -67,6 +67,8 @@ export interface MatchReport {
   requirements: Requirement[];
   gaps: string[];
   notes: string;
+  /** Job name -> what the first bullets are meant to establish. */
+  ordering?: Record<string, string>;
 }
 
 export interface SelectResult {
