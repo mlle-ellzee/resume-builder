@@ -7,6 +7,7 @@ import type { Settings } from "@/lib/session";
 import type { Bank, Bullet, MatchReport, Pick, SelectResult, Selection, Variant } from "@/lib/types";
 import { checkSelection } from "@/lib/validate";
 import { pickFile, type PickedFile } from "./picker";
+import { SortableList } from "./Sortable";
 
 type Step = "setup" | "input" | "review" | "done" | "inbox";
 
@@ -559,8 +560,18 @@ function Review({
                   {i.message}
                 </p>
               ))}
-              <ol className="bullets">
-                {picks.map((p, idx) => {
+              {result.report.ordering?.[job.name] && (
+                <p className="lead-note small">
+                  <strong>Leads with:</strong> {result.report.ordering[job.name]}
+                </p>
+              )}
+              <SortableList
+                id={`job-${job.name}`}
+                items={picks}
+                onReorder={(next) => setJob(job.name, next)}
+                itemClassName={(_, i) => (i < 2 ? "lead" : "")}
+              >
+                {(p, idx) => {
                   const b = bulletById.get(p.id);
                   const others = new Set([...pickedBullets].filter((id) => id !== p.id));
                   const versions = conflicts.get(p.id) ?? new Set<string>();
@@ -568,20 +579,9 @@ function Review({
                     .filter((x) => x.id !== p.id && !others.has(x.id))
                     .sort((a, c) => Number(versions.has(c.id)) - Number(versions.has(a.id)));
                   return (
-                    <li key={p.id}>
+                    <>
                       <BulletText b={b} id={p.id} reason={p.reason} />
                       <div className="controls">
-                        <button className="icon" aria-label="Move up" disabled={idx === 0} onClick={() => setJob(job.name, move(picks, idx, -1))}>
-                          ↑
-                        </button>
-                        <button
-                          className="icon"
-                          aria-label="Move down"
-                          disabled={idx === picks.length - 1}
-                          onClick={() => setJob(job.name, move(picks, idx, 1))}
-                        >
-                          ↓
-                        </button>
                         <select
                           aria-label="Swap for another bullet"
                           value=""
@@ -603,10 +603,10 @@ function Review({
                           ✕
                         </button>
                       </div>
-                    </li>
+                    </>
                   );
-                })}
-              </ol>
+                }}
+              </SortableList>
               <AddSelect
                 label="Add a bullet…"
                 options={pool
@@ -631,33 +631,22 @@ function Review({
                 {i.message}
               </p>
             ))}
-          <ol className="bullets">
-            {selection.skills.map((p, idx) => (
-              <li key={p.id}>
+          <SortableList id="skills" items={selection.skills} onReorder={(skills) => onChange({ ...selection, skills })}>
+            {(p, idx) => (
+              <>
                 <div className="text">{variantById.get(p.id)?.text ?? p.id}</div>
                 <div className="meta">
                   {p.id}
                   {p.reason && <> · {p.reason}</>}
                 </div>
                 <div className="controls">
-                  <button className="icon" aria-label="Move up" disabled={idx === 0} onClick={() => onChange({ ...selection, skills: move(selection.skills, idx, -1) })}>
-                    ↑
-                  </button>
-                  <button
-                    className="icon"
-                    aria-label="Move down"
-                    disabled={idx === selection.skills.length - 1}
-                    onClick={() => onChange({ ...selection, skills: move(selection.skills, idx, 1) })}
-                  >
-                    ↓
-                  </button>
                   <button className="icon" aria-label="Remove" onClick={() => onChange({ ...selection, skills: selection.skills.filter((_, i) => i !== idx) })}>
                     ✕
                   </button>
                 </div>
-              </li>
-            ))}
-          </ol>
+              </>
+            )}
+          </SortableList>
           <AddSelect
             label="Add a skills line…"
             options={bank.variants
@@ -694,14 +683,6 @@ function Review({
       </aside>
     </main>
   );
-}
-
-function move<T>(arr: T[], i: number, d: number): T[] {
-  const next = [...arr];
-  const j = i + d;
-  if (j < 0 || j >= next.length) return next;
-  [next[i], next[j]] = [next[j], next[i]];
-  return next;
 }
 
 function BulletText({ b, id, reason }: { b?: Bullet; id: string; reason: string }) {

@@ -407,3 +407,55 @@ button.link.nav.current {
   border-top: none;
   padding-top: 0;
 }
+
+/* Drag-to-reorder lists */
+.bullets.sortable {
+  list-style: none;
+  padding-left: 0;
+}
+.bullets.sortable li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  background: var(--surface);
+  position: relative;
+}
+.bullets.sortable li.dragging {
+  z-index: 2;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+}
+.handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 2.2rem;
+  padding: 0.35rem 0.3rem;
+  cursor: grab;
+  touch-action: none;
+  color: var(--muted);
+  line-height: 1;
+}
+.handle:active {
+  cursor: grabbing;
+}
+.handle .pos {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.bullets.sortable li.lead .handle {
+  border-color: var(--accent);
+}
+.bullets.sortable li.lead .handle .pos {
+  color: var(--accent);
+}
+.item-body {
+  min-width: 0;
+}
+.lead-note {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
