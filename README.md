@@ -93,7 +93,7 @@ Open `APP_URL`, sign in, then choose your template and bullet bank in the file p
 
 ## Send jobs from Claude chat (optional)
 
-A connector lets Claude chat send a job to the app. In a chat, say something like "send this to my resume builder." Claude saves the posting and replies with a link. The link opens the app with the job filled in and starts picking bullets. Jobs also wait in the app's Inbox for 30 days, or until you generate their resume.
+A connector lets Claude chat send a job to the app. In a chat, say something like "send this to my resume builder." Claude saves the posting and replies with a link. The link opens the app with the job filled in and starts picking bullets. Jobs also stay in the app's Inbox for 30 days unless you remove them, so you can come back and regenerate. If the chat discussed what to emphasize or how to order bullets, Claude sends that as notes, and the app passes them to the bullet picker.
 
 ### 1. Add a Redis database in Vercel
 

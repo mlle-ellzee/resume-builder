@@ -13,6 +13,8 @@ export interface JobDraft {
   /** Short notes from the chat about fit, shown in the app. */
   notes: string;
   createdAt: number;
+  /** The most recent resume generated for this job. */
+  lastResume?: { url: string; at: number };
 }
 
 const TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -62,6 +64,13 @@ export async function listDrafts(limit = 25): Promise<JobDraft[]> {
   const gone = ids.filter((_, i) => !drafts[i]);
   if (gone.length) await r.zrem(INDEX, ...gone);
   return drafts.filter((d): d is JobDraft => !!d);
+}
+
+/** Record the latest resume for a job, keeping the job's original 30-day expiry. */
+export async function markResumeMade(id: string, url: string): Promise<void> {
+  const draft = await getDraft(id);
+  if (!draft) return;
+  await redis().set(key(id), { ...draft, lastResume: { url, at: Date.now() } }, { keepTtl: true });
 }
 
 export async function deleteDraft(id: string): Promise<void> {

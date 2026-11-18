@@ -139,6 +139,7 @@ export default function App({ email, initialSettings, picker, error, incoming, i
         company: d.company,
         role: d.role,
         jobDescription: d.jd,
+        notes: d.notes ?? "",
       });
       update({ bank: data.bank, bankProblems: data.bankProblems, result: data.result, selection: data.result.selection });
       setStep("review");
@@ -228,6 +229,15 @@ export default function App({ email, initialSettings, picker, error, incoming, i
             Job description
             <textarea rows={16} value={draft.jd} onChange={(e) => update({ jd: e.target.value })} placeholder="Paste the full posting" />
           </label>
+          <label>
+            Notes for Claude <span className="muted small">(optional)</span>
+            <textarea
+              rows={4}
+              value={draft.notes ?? ""}
+              onChange={(e) => update({ notes: e.target.value })}
+              placeholder="What to emphasize, which experience should lead, or how to order the bullets"
+            />
+          </label>
           <div className="actions">
             <button className="primary" disabled={busy || draft.jd.trim().length < 50} onClick={() => runSelect()}>
               {busy ? "Picking bullets…" : "Pick bullets"}
@@ -253,12 +263,6 @@ export default function App({ email, initialSettings, picker, error, incoming, i
             )}
           </div>
           {busy && <p className="muted">Claude is reading the posting and your bank. This usually takes under a minute or two.</p>}
-          {draft.notes && (
-            <div className="card">
-              <div className="label">Notes from your chat</div>
-              <p>{draft.notes}</p>
-            </div>
-          )}
         </main>
       )}
 
@@ -675,7 +679,7 @@ function Review({
       <aside className="report">
         {chatNotes && (
           <div className="card">
-            <h2>Notes from your chat</h2>
+            <h2>Your notes</h2>
             <p>{chatNotes}</p>
           </div>
         )}
@@ -838,7 +842,7 @@ function Inbox({
     <main className="narrow">
       <h1>Inbox</h1>
       <p className="muted">
-        Jobs sent from Claude chat. Each one is removed once you generate its resume, or after 30 days.
+        Jobs sent from Claude chat. Each one stays here for 30 days unless you remove it.
       </p>
       {jobs === null && <p className="muted">Loading…</p>}
       {jobs && jobs.length === 0 && (
@@ -860,6 +864,14 @@ function Inbox({
                     <div className="meta">
                       Sent {new Date(j.createdAt).toLocaleDateString()}
                       {isCurrent && " · open now"}
+                      {j.lastResume && (
+                        <>
+                          {" · "}
+                          <a href={j.lastResume.url} target="_blank" rel="noreferrer">
+                            Resume made {new Date(j.lastResume.at).toLocaleDateString()}
+                          </a>
+                        </>
+                      )}
                     </div>
                     {j.notes && <div className="reason">{j.notes}</div>}
                   </div>
