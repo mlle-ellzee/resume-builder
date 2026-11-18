@@ -7,7 +7,8 @@
 import { createMcpHandler } from "mcp-handler";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { createDraft, draftsEnabled } from "@/lib/drafts";
+import { createDraft, draftsEnabled, getReview } from "@/lib/drafts";
+import { reviewForChat } from "@/lib/reviewText";
 
 function keyMatches(given: string): boolean {
   const secret = process.env.MCP_SECRET ?? "";
@@ -65,8 +66,26 @@ function buildHandler(origin: string) {
           };
         },
       );
+
+      server.registerTool(
+        "get_resume_draft",
+        {
+          title: "Read the current resume draft",
+          description:
+            "Read the resume draft currently open on the Resume Builder review screen: the tagline, summary, each job's bullets in order, and skills, with bank IDs. Also returns what the opening bullets are meant to establish, gaps against the job posting, and the unused bullets and options in the bank, so you can suggest specific swaps. Use when the user asks for feedback on their resume draft or picks. Read-only: suggest changes by ID, and the user makes them in the app. Every item is fixed text from the user's bank, so suggest choosing different items rather than rewording.",
+          inputSchema: z.object({}),
+          annotations: { readOnlyHint: true },
+        },
+        async () => {
+          const review = await getReview();
+          const text = review
+            ? reviewForChat(review)
+            : "No draft has been shared yet. The user needs to open a job in Resume Builder and get to the review screen; the draft is shared automatically from there.";
+          return { content: [{ type: "text", text }] };
+        },
+      );
     },
-    { serverInfo: { name: "resume-builder", version: "1.0.0" } },
+    { serverInfo: { name: "resume-builder", version: "1.1.0" } },
   );
 }
 

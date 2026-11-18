@@ -95,6 +95,8 @@ Open `APP_URL`, sign in, then choose your template and bullet bank in the file p
 
 A connector lets Claude chat send a job to the app. In a chat, say something like "send this to my resume builder." Claude saves the posting and replies with a link. The link opens the app with the job filled in and starts picking bullets. Jobs also stay in the app's Inbox for 30 days unless you remove them, so you can come back and regenerate. If the chat discussed what to emphasize or how to order bullets, Claude sends that as notes, and the app passes them to the bullet picker.
 
+The connector also lets Claude chat read your draft. While you're on the review screen, the app shares the current draft (it saves a moment after each change). Ask Claude for feedback on your resume draft, and it reads the draft, the match report, and the unused bullets in your bank, then suggests swaps or reordering by bullet ID. It can only read; you make the changes in the app. Only the most recent draft is shared, and it's kept for 30 days.
+
 ### 1. Add a Redis database in Vercel
 
 1. In the Vercel project, open **Storage**, then **Create Database** (or **Browse Marketplace**), and choose **Upstash** → **Redis**. The free plan is enough.
@@ -143,7 +145,7 @@ For local sign-in, add `http://localhost:3000` and `http://localhost:3000/api/au
 ### How it's built
 
 - Next.js on Vercel. The session (Google refresh token) and the chosen file IDs are stored in encrypted, HTTP-only cookies. Redis holds only jobs sent from Claude chat.
-- `app/api/mcp/[key]/route.ts`: the Claude chat connector (MCP server, via `mcp-handler`), with one tool that saves a job and returns a link. `lib/drafts.ts` stores the jobs.
+- `app/api/mcp/[key]/route.ts`: the Claude chat connector (MCP server, via `mcp-handler`), with two tools: one saves a job and returns a link, and one reads the draft on the review screen (`lib/reviewText.ts` formats it). `lib/drafts.ts` stores the jobs.
 - `lib/select.ts`: one Claude request with structured output. The bank is sent with every request, and the IDs Claude can return are limited to IDs in the bank. Server-side refusal fallback is turned on.
 - `lib/validate.ts`: the rules, enforced in code on the server and in the review screen.
 - `lib/docgen.ts`: the Google Docs edits that fill the template copy, applied in one batch.
